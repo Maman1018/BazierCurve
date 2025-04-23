@@ -1,0 +1,564 @@
+// main.cpp
+#include <GL/glew.h>
+#include <GLFW/glfw3.h>
+#include <vector>
+#include <iostream>
+#include <cmath>
+#include "tessShader.h" // Includes LoadShaders helper
+
+struct Point {
+    float x, y;
+};
+
+const int windowWidth = 700, windowHeight = 700;
+std::vector<Point> controlPoints = {
+    {-0.75f, -0.75f},
+    {-0.25f,  0.75f},
+    { 0.25f, -0.75f},
+    { 0.75f,  0.75f}
+};
+bool isDragging = false;
+int draggedPointIndex = -1;
+
+GLuint vao, vbo, shaderProgram;
+
+void updateBuffer() {
+    glBindBuffer(GL_ARRAY_BUFFER, vbo);
+    glBufferData(GL_ARRAY_BUFFER, sizeof(Point) * controlPoints.size(), controlPoints.data(), GL_DYNAMIC_DRAW);
+    glBindBuffer(GL_ARRAY_BUFFER, 0);
+}
+
+void drawControlPoints() {
+    glPointSize(10.0f);
+    glColor3f(1.0f, 0.0f, 0.0f);
+    glBegin(GL_POINTS);
+    for (const auto& pt : controlPoints)
+        glVertex2f(pt.x, pt.y);
+    glEnd();
+}
+
+void drawControlPolygon() {
+    glLineWidth(5.0f);
+    glColor3f(0.0f, 0.0f, 1.0f);
+    glBegin(GL_LINE_STRIP);
+    for (const auto& pt : controlPoints)
+        glVertex2f(pt.x, pt.y);
+    glEnd();
+}
+
+void mouseButtonCallback(GLFWwindow* window, int button, int action, int mods) {
+    double xpos, ypos;
+    glfwGetCursorPos(window, &xpos, &ypos);
+    xpos = (xpos / windowWidth) * 2.0 - 1.0;
+    ypos = -((ypos / windowHeight) * 2.0 - 1.0);
+
+    if (button == GLFW_MOUSE_BUTTON_LEFT && action == GLFW_PRESS) {
+        for (int i = 0; i < controlPoints.size(); ++i) {
+            float dx = xpos - controlPoints[i].x;
+            float dy = ypos - controlPoints[i].y;
+            if (dx * dx + dy * dy < 0.03f) {
+                isDragging = true;
+                draggedPointIndex = i;
+                return;
+            }
+        }
+        if (controlPoints.size() < 4) {
+            controlPoints.push_back({ (float)xpos, (float)ypos });
+            updateBuffer();
+        }
+    }
+    else if (button == GLFW_MOUSE_BUTTON_RIGHT && action == GLFW_PRESS) {
+        if (controlPoints.size() > 2) {
+            float minDist = 1000.0f;
+            int closest = -1;
+            for (int i = 0; i < controlPoints.size(); ++i) {
+                float dx = xpos - controlPoints[i].x;
+                float dy = ypos - controlPoints[i].y;
+                float dist = dx * dx + dy * dy;
+                if (dist < minDist) {
+                    minDist = dist;
+                    closest = i;
+                }
+            }
+            if (closest != -1 && minDist < 0.03f) {
+                controlPoints.erase(controlPoints.begin() + closest);
+                updateBuffer();
+            }
+        }
+    }
+    if (button == GLFW_MOUSE_BUTTON_LEFT && action == GLFW_RELEASE) {
+        isDragging = false;
+        draggedPointIndex = -1;
+    }
+}
+
+void cursorCallback(GLFWwindow* window, double xpos, double ypos) {
+    if (isDragging && draggedPointIndex != -1) {
+        xpos = (xpos / windowWidth) * 2.0 - 1.0;
+        ypos = -((ypos / windowHeight) * 2.0 - 1.0);
+        controlPoints[draggedPointIndex].x = (float)xpos;
+        controlPoints[draggedPointIndex].y = (float)ypos;
+        updateBuffer();
+    }
+}
+
+int main() {
+    glfwInit();
+    GLFWwindow* window = glfwCreateWindow(windowWidth, windowHeight, "Bezier Curve with Shaders", nullptr, nullptr);
+    glfwMakeContextCurrent(window);
+    glewInit();
+
+    glfwSetMouseButtonCallback(window, mouseButtonCallback);
+    glfwSetCursorPosCallback(window, cursorCallback);
+
+    shaderProgram = LoadShaders("vertex.glsl", "fragment.glsl", "tess_control.glsl", "tess_eval.glsl");
+
+    glGenVertexArrays(1, &vao);
+    glGenBuffers(1, &vbo);
+    glBindVertexArray(vao);
+    glBindBuffer(GL_ARRAY_BUFFER, vbo);
+    glBufferData(GL_ARRAY_BUFFER, sizeof(Point) * controlPoints.size(), controlPoints.data(), GL_DYNAMIC_DRAW);
+    glEnableVertexAttribArray(0);
+    glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, sizeof(Point), (void*)0);
+    glBindVertexArray(0);
+
+    while (!glfwWindowShouldClose(window)) {
+        glClearColor(1.0f, 1.0f, 1.0f, 1.0f);
+        glClear(GL_COLOR_BUFFER_BIT);
+
+        glUseProgram(0);
+        glBindVertexArray(0);
+
+        drawControlPolygon();
+        drawControlPoints();
+
+        if (controlPoints.size() >= 2 && controlPoints.size() <= 4) {
+
+
+            glUseProgram(shaderProgram);
+            glBindVertexArray(vao);
+            glPatchParameteri(GL_PATCH_VERTICES, controlPoints.size());
+            glDrawArrays(GL_PATCHES, 0, controlPoints.size());
+        }
+
+        glfwSwapBuffers(window);
+        glfwPollEvents();
+    }
+
+    glfwTerminate();
+    return 0;
+}
+
+
+
+
+// Working Code
+
+#include <GL/glew.h>
+#include <GLFW/glfw3.h>
+#include <vector>
+#include <iostream>
+#include <cmath>
+
+// Constants
+const int windowWidth = 700;
+const int windowHeight = 700;
+
+bool isDragging = false;
+int draggedPointIndex = -1;
+
+// Data structure for a 2D point
+struct Point {
+    float x, y;
+};
+
+// Control points
+std::vector<Point> controlPoints = {
+    {-0.75f, -0.75f},
+    {-0.25f,  0.75f},
+    { 0.25f, -0.75f},
+    { 0.75f,  0.75f}
+};
+
+// Bézier curve calculation (cubic)
+Point bezier(float t) {
+    size_t n = controlPoints.size();
+
+    if (n == 2) {
+        // Linear Bézier
+        float u = 1.0f - t;
+        return {
+            u * controlPoints[0].x + t * controlPoints[1].x,
+            u * controlPoints[0].y + t * controlPoints[1].y
+        };
+    }
+    else if (n == 3) {
+        // Quadratic Bézier
+        float u = 1.0f - t;
+        float b0 = u * u;
+        float b1 = 2 * u * t;
+        float b2 = t * t;
+
+        return {
+            b0 * controlPoints[0].x + b1 * controlPoints[1].x + b2 * controlPoints[2].x,
+            b0 * controlPoints[0].y + b1 * controlPoints[1].y + b2 * controlPoints[2].y
+        };
+    }
+    else if (n == 4) {
+        // Cubic Bézier
+        float u = 1.0f - t;
+        float b0 = u * u * u;
+        float b1 = 3 * u * u * t;
+        float b2 = 3 * u * t * t;
+        float b3 = t * t * t;
+
+        return {
+            b0 * controlPoints[0].x + b1 * controlPoints[1].x + b2 * controlPoints[2].x + b3 * controlPoints[3].x,
+            b0 * controlPoints[0].y + b1 * controlPoints[1].y + b2 * controlPoints[2].y + b3 * controlPoints[3].y
+        };
+    }
+
+    // Default fallback (not enough points)
+    return { 0.0f, 0.0f };
+}
+
+
+void drawControlPoints() {
+    glPointSize(10.0f);
+    glColor3f(1.0f, 0.0f, 0.0f); // Red
+    glBegin(GL_POINTS);
+    for (const auto& pt : controlPoints)
+        glVertex2f(pt.x, pt.y);
+    glEnd();
+}
+
+void drawControlPolygon() {
+    glLineWidth(5.0f);
+    glColor3f(0.0f, 0.0f, 1.0f); // Blue
+    glBegin(GL_LINE_STRIP);
+    for (const auto& pt : controlPoints)
+        glVertex2f(pt.x, pt.y);
+    glEnd();
+}
+
+void drawBezierCurve() {
+    if (controlPoints.size() < 2 || controlPoints.size() > 4) return;
+
+    glColor3f(0.0f, 1.0f, 0.0f); // Green
+    glBegin(GL_LINE_STRIP);
+    const int steps = 100;
+    for (int i = 0; i <= steps; ++i) {
+        float t = (float)i / steps;
+        Point pt = bezier(t);
+        glVertex2f(pt.x, pt.y);
+    }
+    glEnd();
+}
+
+void mouseButtonCallback(GLFWwindow* window, int button, int action, int mods) {
+    double xpos, ypos;
+    glfwGetCursorPos(window, &xpos, &ypos);
+
+    // Convert to OpenGL coords
+    xpos = (xpos / windowWidth) * 2.0 - 1.0;
+    ypos = -((ypos / windowHeight) * 2.0 - 1.0);
+
+    if (button == GLFW_MOUSE_BUTTON_LEFT && action == GLFW_PRESS) {
+        // Try to drag existing point
+        for (int i = 0; i < controlPoints.size(); ++i) {
+            float dx = xpos - controlPoints[i].x;
+            float dy = ypos - controlPoints[i].y;
+            if (dx * dx + dy * dy < 0.03f) {
+                isDragging = true;
+                draggedPointIndex = i;
+                return;
+            }
+        }
+
+        // If not dragging existing, try to add new
+        if (controlPoints.size() < 4) {
+            controlPoints.push_back({ (float)xpos, (float)ypos });
+        }
+
+    } else if (button == GLFW_MOUSE_BUTTON_RIGHT && action == GLFW_PRESS) {
+        // Try to remove a point if more than 2
+        if (controlPoints.size() > 2) {
+            // Find closest point to cursor
+            float minDist = 1000.0f;
+            int closestIndex = -1;
+
+            for (int i = 0; i < controlPoints.size(); ++i) {
+                float dx = xpos - controlPoints[i].x;
+                float dy = ypos - controlPoints[i].y;
+                float dist = dx * dx + dy * dy;
+                if (dist < minDist) {
+                    minDist = dist;
+                    closestIndex = i;
+                }
+            }
+
+            // Remove if close enough
+            if (closestIndex != -1 && minDist < 0.03f) {
+                controlPoints.erase(controlPoints.begin() + closestIndex);
+            }
+        }
+    }
+
+    if (button == GLFW_MOUSE_BUTTON_LEFT && action == GLFW_RELEASE) {
+        isDragging = false;
+        draggedPointIndex = -1;
+    }
+}
+
+
+void cursorPositionCallback(GLFWwindow* window, double xpos, double ypos) {
+    if (isDragging && draggedPointIndex != -1) {
+        // Convert to OpenGL coords
+        xpos = (xpos / windowWidth) * 2.0 - 1.0;
+        ypos = -((ypos / windowHeight) * 2.0 - 1.0);
+
+        controlPoints[draggedPointIndex].x = (float)xpos;
+        controlPoints[draggedPointIndex].y = (float)ypos;
+    }
+}
+
+
+int main() {
+    if (!glfwInit()) return -1;
+
+    GLFWwindow* window = glfwCreateWindow(windowWidth, windowHeight, "Bézier Curve (CPU)", NULL, NULL);
+    if (!window) {
+        glfwTerminate();
+        return -1;
+    }
+
+    glfwMakeContextCurrent(window);
+    glfwSetMouseButtonCallback(window, mouseButtonCallback);
+    glfwSetCursorPosCallback(window, cursorPositionCallback);
+
+    glewInit();
+
+    while (!glfwWindowShouldClose(window)) {
+        glClearColor(1.0f, 1.0f, 1.0f, 1.0f); // White background
+        glClear(GL_COLOR_BUFFER_BIT);
+
+        drawControlPolygon();
+        drawControlPoints();
+        drawBezierCurve();
+
+        glfwSwapBuffers(window);
+        glfwPollEvents();
+    }
+
+    glfwTerminate();
+    return 0;
+}
+
+
+// DEEPSEEK VERSION
+
+#include <GL/glew.h>
+#include <GLFW/glfw3.h>
+#include <vector>
+#include <iostream>
+#include <cmath>
+#include "tessShader.h"
+
+struct Point {
+    float x, y;
+};
+
+const int windowWidth = 700, windowHeight = 700;
+std::vector<Point> controlPoints = {
+    {-0.75f, -0.75f},
+    {-0.25f,  0.75f},
+    { 0.25f, -0.75f},
+    { 0.75f,  0.75f}
+};
+bool isDragging = false;
+int draggedPointIndex = -1;
+
+GLuint vao, vbo, shaderProgram, simpleShader;
+GLuint numControlPointsLoc;
+
+const char* vertexShaderSrc = R"glsl(
+#version 410 core
+layout(location = 0) in vec2 position;
+void main() {
+    gl_Position = vec4(position, 0.0, 1.0);
+}
+)glsl";
+
+const char* fragmentShaderSrc = R"glsl(
+#version 410 core
+out vec4 FragColor;
+uniform vec3 color;
+void main() {
+    FragColor = vec4(color, 1.0);
+}
+)glsl";
+
+void updateBuffer() {
+    glBindBuffer(GL_ARRAY_BUFFER, vbo);
+    glBufferData(GL_ARRAY_BUFFER, sizeof(Point) * controlPoints.size(), controlPoints.data(), GL_DYNAMIC_DRAW);
+}
+
+GLuint compileShader(GLenum type, const char* source) {
+    GLuint shader = glCreateShader(type);
+    glShaderSource(shader, 1, &source, nullptr);
+    glCompileShader(shader);
+    
+    GLint success;
+    glGetShaderiv(shader, GL_COMPILE_STATUS, &success);
+    if (!success) {
+        char infoLog[512];
+        glGetShaderInfoLog(shader, 512, nullptr, infoLog);
+        std::cerr << "Shader compilation error:\n" << infoLog << std::endl;
+    }
+    return shader;
+}
+
+GLuint createSimpleShaderProgram() {
+    GLuint vertexShader = compileShader(GL_VERTEX_SHADER, vertexShaderSrc);
+    GLuint fragmentShader = compileShader(GL_FRAGMENT_SHADER, fragmentShaderSrc);
+    
+    GLuint program = glCreateProgram();
+    glAttachShader(program, vertexShader);
+    glAttachShader(program, fragmentShader);
+    glLinkProgram(program);
+    
+    GLint success;
+    glGetProgramiv(program, GL_LINK_STATUS, &success);
+    if (!success) {
+        char infoLog[512];
+        glGetProgramInfoLog(program, 512, nullptr, infoLog);
+        std::cerr << "Shader program linking error:\n" << infoLog << std::endl;
+    }
+    
+    glDeleteShader(vertexShader);
+    glDeleteShader(fragmentShader);
+    
+    return program;
+}
+
+void mouseButtonCallback(GLFWwindow* window, int button, int action, int mods) {
+    double xpos, ypos;
+    glfwGetCursorPos(window, &xpos, &ypos);
+    xpos = (xpos / windowWidth) * 2.0 - 1.0;
+    ypos = -((ypos / windowHeight) * 2.0 - 1.0);
+
+    if (button == GLFW_MOUSE_BUTTON_LEFT && action == GLFW_PRESS) {
+        for (int i = 0; i < controlPoints.size(); ++i) {
+            float dx = xpos - controlPoints[i].x;
+            float dy = ypos - controlPoints[i].y;
+            if (dx * dx + dy * dy < 0.03f) {
+                isDragging = true;
+                draggedPointIndex = i;
+                return;
+            }
+        }
+        if (controlPoints.size() < 32) { // Limit to 32 points for our shader
+            controlPoints.push_back({ (float)xpos, (float)ypos });
+            updateBuffer();
+        }
+    }
+    else if (button == GLFW_MOUSE_BUTTON_RIGHT && action == GLFW_PRESS) {
+        if (controlPoints.size() > 2) {
+            float minDist = 1000.0f;
+            int closest = -1;
+            for (int i = 0; i < controlPoints.size(); ++i) {
+                float dx = xpos - controlPoints[i].x;
+                float dy = ypos - controlPoints[i].y;
+                float dist = dx * dx + dy * dy;
+                if (dist < minDist) {
+                    minDist = dist;
+                    closest = i;
+                }
+            }
+            if (closest != -1 && minDist < 0.03f) {
+                controlPoints.erase(controlPoints.begin() + closest);
+                updateBuffer();
+            }
+        }
+    }
+    if (button == GLFW_MOUSE_BUTTON_LEFT && action == GLFW_RELEASE) {
+        isDragging = false;
+        draggedPointIndex = -1;
+    }
+}
+
+void cursorCallback(GLFWwindow* window, double xpos, double ypos) {
+    if (isDragging && draggedPointIndex != -1) {
+        xpos = (xpos / windowWidth) * 2.0 - 1.0;
+        ypos = -((ypos / windowHeight) * 2.0 - 1.0);
+        controlPoints[draggedPointIndex].x = (float)xpos;
+        controlPoints[draggedPointIndex].y = (float)ypos;
+        updateBuffer();
+    }
+}
+
+int main() {
+    glfwInit();
+    GLFWwindow* window = glfwCreateWindow(windowWidth, windowHeight, "Bezier Curve with Shaders", nullptr, nullptr);
+    glfwMakeContextCurrent(window);
+    glewInit();
+
+    glfwSetMouseButtonCallback(window, mouseButtonCallback);
+    glfwSetCursorPosCallback(window, cursorCallback);
+
+    // Create shaders
+    shaderProgram = LoadShaders("vertex.glsl", "fragment.glsl", "tess_control.glsl", "tess_eval.glsl");
+    simpleShader = createSimpleShaderProgram();
+    numControlPointsLoc = glGetUniformLocation(shaderProgram, "numControlPoints");
+
+    // Create VAO and VBO
+    glGenVertexArrays(1, &vao);
+    glGenBuffers(1, &vbo);
+    glBindVertexArray(vao);
+    glBindBuffer(GL_ARRAY_BUFFER, vbo);
+    glBufferData(GL_ARRAY_BUFFER, sizeof(Point) * controlPoints.size(), controlPoints.data(), GL_DYNAMIC_DRAW);
+    glEnableVertexAttribArray(0);
+    glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, sizeof(Point), (void*)0);
+    glBindVertexArray(0);
+
+    while (!glfwWindowShouldClose(window)) {
+        glClearColor(1.0f, 1.0f, 1.0f, 1.0f);
+        glClear(GL_COLOR_BUFFER_BIT);
+
+        // Draw control polygon
+        if (controlPoints.size() >= 2) {
+            glUseProgram(simpleShader);
+            glUniform3f(glGetUniformLocation(simpleShader, "color"), 0.0f, 0.0f, 1.0f);
+            glBindVertexArray(vao);
+            glDrawArrays(GL_LINE_STRIP, 0, controlPoints.size());
+        }
+
+        // Draw control points
+        if (!controlPoints.empty()) {
+            glUseProgram(simpleShader);
+            glUniform3f(glGetUniformLocation(simpleShader, "color"), 1.0f, 0.0f, 0.0f);
+            glBindVertexArray(vao);
+            glPointSize(10.0f);
+            glDrawArrays(GL_POINTS, 0, controlPoints.size());
+        }
+
+        // Draw Bezier curve
+        if (controlPoints.size() >= 2) {
+            glUseProgram(shaderProgram);
+            glUniform1i(numControlPointsLoc, (int)controlPoints.size());
+            glBindVertexArray(vao);
+            glPatchParameteri(GL_PATCH_VERTICES, controlPoints.size());
+            glDrawArrays(GL_PATCHES, 0, controlPoints.size());
+        }
+
+        glfwSwapBuffers(window);
+        glfwPollEvents();
+    }
+
+    glDeleteVertexArrays(1, &vao);
+    glDeleteBuffers(1, &vbo);
+    glDeleteProgram(shaderProgram);
+    glDeleteProgram(simpleShader);
+    glfwTerminate();
+    return 0;
+}

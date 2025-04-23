@@ -1,0 +1,10 @@
+﻿  BezierCurve(Asgnmt2).cpp
+C:\Users\User\Downloads\Ass1\BezierCurve(Asgnmt2)\BezierCurve(Asgnmt2)\BezierCurve(Asgnmt2).cpp(65,22): warning C4244: 'initializing': conversion from 'double' to 'float', possible loss of data
+C:\Users\User\Downloads\Ass1\BezierCurve(Asgnmt2)\BezierCurve(Asgnmt2)\BezierCurve(Asgnmt2).cpp(66,22): warning C4244: 'initializing': conversion from 'double' to 'float', possible loss of data
+C:\Users\User\Downloads\Ass1\BezierCurve(Asgnmt2)\BezierCurve(Asgnmt2)\BezierCurve(Asgnmt2).cpp(83,26): warning C4244: 'initializing': conversion from 'double' to 'float', possible loss of data
+C:\Users\User\Downloads\Ass1\BezierCurve(Asgnmt2)\BezierCurve(Asgnmt2)\BezierCurve(Asgnmt2).cpp(84,26): warning C4244: 'initializing': conversion from 'double' to 'float', possible loss of data
+C:\Users\User\Downloads\Ass1\BezierCurve(Asgnmt2)\BezierCurve(Asgnmt2)\BezierCurve(Asgnmt2).cpp(156,64): warning C4267: 'argument': conversion from 'size_t' to 'GLint', possible loss of data
+C:\Users\User\Downloads\Ass1\BezierCurve(Asgnmt2)\BezierCurve(Asgnmt2)\BezierCurve(Asgnmt2).cpp(157,55): warning C4267: 'argument': conversion from 'size_t' to 'GLsizei', possible loss of data
+  BezierCurve(Asgnmt2).vcxproj -> C:\Users\User\Downloads\Ass1\BezierCurve(Asgnmt2)\x64\Debug\BezierCurve(Asgnmt2).exe
+  'pwsh.exe' is not recognized as an internal or external command,
+  operable program or batch file.
